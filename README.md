@@ -1,4 +1,4 @@
-# X UI Automate
+# 𝕏 Automation
 
 Twitter/X automation on Android via uiautomator2.
 
@@ -17,3 +17,4 @@ python start_here.py   # basic flow
 python scrapper.py     # scrape tweets
 python commenter.py    # comment on tweets
 ```
+
