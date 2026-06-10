@@ -136,6 +136,7 @@ def parse_visible_tweets(xml_str: str) -> list[Tweet]:
                     text_index += 1
                 if desc.get("resource-id") == "com.twitter.android:id/card_media_tweet_container":
                     tweet.has_media = True
+                    tweet.media_bounds = desc.get("bounds") or tweet.media_bounds
             tweets.append(tweet)
 
     return tweets

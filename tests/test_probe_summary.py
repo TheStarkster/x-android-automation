@@ -38,6 +38,7 @@ class ProbeSummaryTest(unittest.TestCase):
             "row_bounds": "[0,0][1,1]",
             "text_bounds": "[0,0][1,1]",
             "header_bounds": None,
+            "media_bounds": None,
             "has_media": False,
             "is_promoted": False,
             "is_quote": False,

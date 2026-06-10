@@ -6,10 +6,33 @@ from dataclasses import dataclass
 import requests
 
 from models import GeneratedReply, Tweet
-from persona import build_reply_prompt, choose_style_hint
+from persona import build_reply_prompt, build_reply_system_instruction, choose_style_hint
 from validation import normalize_reply
 
 logger = logging.getLogger(__name__)
+
+
+def _generation_config(temperature: float, max_output_tokens: int) -> dict:
+    return {
+        "temperature": temperature,
+        "maxOutputTokens": max_output_tokens,
+        "thinkingConfig": {"thinkingBudget": 0},
+    }
+
+
+def _content_parts(prompt: str, tweet: Tweet | None = None) -> list[dict]:
+    parts: list[dict] = [{"text": prompt}]
+    image = tweet.image_context if tweet else None
+    if image and image.status == "captured" and image.data_base64:
+        parts.append(
+            {
+                "inline_data": {
+                    "mime_type": image.mime_type,
+                    "data": image.data_base64,
+                }
+            }
+        )
+    return parts
 
 
 @dataclass
@@ -28,7 +51,7 @@ class GeminiClient:
             headers={"Content-Type": "application/json"},
             json={
                 "contents": [{"parts": [{"text": "Say OK if you can read this."}]}],
-                "generationConfig": {"temperature": 0.1, "maxOutputTokens": 16},
+                "generationConfig": _generation_config(temperature=0.1, max_output_tokens=32),
             },
             timeout=10,
         )
@@ -46,16 +69,15 @@ class GeminiClient:
     ) -> GeneratedReply:
         style_hint = choose_style_hint()
         prompt = build_reply_prompt(tweet, style_hint=style_hint, previous_failure=previous_failure)
-        logger.info("Generating reply with Gemini model=%s prompt_chars=%s", self.model, len(prompt))
+        has_image = bool(tweet.image_context and tweet.image_context.status == "captured" and tweet.image_context.data_base64)
+        logger.info("Generating reply with Gemini model=%s prompt_chars=%s has_image=%s", self.model, len(prompt), has_image)
         response = requests.post(
             self.url,
             headers={"Content-Type": "application/json"},
             json={
-                "contents": [{"parts": [{"text": prompt}]}],
-                "generationConfig": {
-                    "temperature": 0.75,
-                    "maxOutputTokens": 320,
-                },
+                "systemInstruction": {"parts": [{"text": build_reply_system_instruction()}]},
+                "contents": [{"parts": _content_parts(prompt, tweet)}],
+                "generationConfig": _generation_config(temperature=0.75, max_output_tokens=1024),
             },
             timeout=self.timeout,
         )
@@ -65,6 +87,14 @@ class GeminiClient:
         finish_reason = candidate.get("finishReason")
         parts = candidate.get("content", {}).get("parts", [])
         text = "".join(part.get("text", "") for part in parts)
+        usage = payload.get("usageMetadata") or {}
+        if finish_reason == "MAX_TOKENS":
+            logger.warning(
+                "Gemini reply hit max tokens output_tokens=%s total_tokens=%s prompt_tokens=%s",
+                usage.get("candidatesTokenCount"),
+                usage.get("totalTokenCount"),
+                usage.get("promptTokenCount"),
+            )
         return GeneratedReply(
             text=normalize_reply(text),
             model=self.model,

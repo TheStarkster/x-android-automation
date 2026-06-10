@@ -54,6 +54,10 @@ class Config:
     launch_wait_max: float
     post_wait_min: float
     post_wait_max: float
+    media_capture_mode: str
+    media_capture_retries: int
+    media_image_max_edge: int
+    media_image_jpeg_quality: int
 
     @classmethod
     def from_env(cls) -> "Config":
@@ -61,7 +65,7 @@ class Config:
         return cls(
             package_name=os.environ.get("X_PACKAGE_NAME", "com.twitter.android"),
             gemini_api_key=os.environ.get("GEMINI_API_KEY", ""),
-            gemini_model=os.environ.get("GEMINI_MODEL", "gemini-2.5-flash"),
+            gemini_model=os.environ.get("GEMINI_MODEL", "gemini-3.5-flash"),
             max_tweets_to_comment=_env_int("MAX_TWEETS_TO_COMMENT", 30),
             max_comments_per_hour=_env_int("MAX_COMMENTS_PER_HOUR", 20),
             max_scrolls=_env_int("MAX_SCROLLS", 30),
@@ -75,6 +79,10 @@ class Config:
             launch_wait_max=float(os.environ.get("LAUNCH_WAIT_MAX", "7")),
             post_wait_min=float(os.environ.get("POST_WAIT_MIN", "12")),
             post_wait_max=float(os.environ.get("POST_WAIT_MAX", "20")),
+            media_capture_mode=os.environ.get("MEDIA_CAPTURE_MODE", "gallery"),
+            media_capture_retries=_env_int("MEDIA_CAPTURE_RETRIES", 1),
+            media_image_max_edge=_env_int("MEDIA_IMAGE_MAX_EDGE", 1280),
+            media_image_jpeg_quality=_env_int("MEDIA_IMAGE_JPEG_QUALITY", 85),
         )
 
     def validate(self) -> None:
@@ -82,9 +90,17 @@ class Config:
             raise ValueError("Only POSTING_MODE=auto_guarded is implemented.")
         if self.reply_sort != "most_liked":
             raise ValueError("Only REPLY_SORT=most_liked is implemented.")
+        if self.media_capture_mode != "gallery":
+            raise ValueError("Only MEDIA_CAPTURE_MODE=gallery is implemented.")
         if self.max_tweets_to_comment < 1:
             raise ValueError("MAX_TWEETS_TO_COMMENT must be at least 1.")
         if self.max_comments_per_hour < 1:
             raise ValueError("MAX_COMMENTS_PER_HOUR must be at least 1.")
+        if self.media_capture_retries < 0:
+            raise ValueError("MEDIA_CAPTURE_RETRIES must be at least 0.")
+        if self.media_image_max_edge < 1:
+            raise ValueError("MEDIA_IMAGE_MAX_EDGE must be at least 1.")
+        if not 1 <= self.media_image_jpeg_quality <= 95:
+            raise ValueError("MEDIA_IMAGE_JPEG_QUALITY must be between 1 and 95.")
         if not self.gemini_api_key:
             raise ValueError("GEMINI_API_KEY is required.")

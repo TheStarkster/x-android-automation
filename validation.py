@@ -4,7 +4,7 @@ import re
 from dataclasses import dataclass
 
 from models import Comment, Tweet
-from persona import MAX_REPLY_CHARS, is_chameleon_relevant
+from persona import MAX_REPLY_CHARS, MIN_REPLY_CHARS, is_chameleon_relevant
 
 
 BANNED_TOPICS = {
@@ -96,7 +96,7 @@ def validate_tweet(tweet: Tweet) -> ValidationResult:
 
 def validate_reply(text: str, tweet: Tweet, comments: list[Comment]) -> ValidationResult:
     cleaned = normalize_reply(text)
-    if len(cleaned) < 20:
+    if len(cleaned) < MIN_REPLY_CHARS:
         return ValidationResult(False, reason="reply too short")
     if len(cleaned) > MAX_REPLY_CHARS:
         return ValidationResult(False, reason="reply too long")

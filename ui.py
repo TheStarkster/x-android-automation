@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+import base64
+import io
 import logging
 import random
 import re
 import time
 
 from config import Config
-from models import Tweet
+from models import Tweet, TweetImage
 from parser import parse_top_comments, parse_visible_tweets
 
 logger = logging.getLogger(__name__)
@@ -90,13 +92,17 @@ class TwitterUI:
             return False
         if self.d(resourceId="com.twitter.android:id/reply_sorting").exists:
             return True
+        if self._is_tweet_detail_screen(xml_str):
+            logger.info("Tweet detail opened; reply sorting is not visible yet")
+            self.save_artifact("open_detail_without_sorting.xml", xml_str)
+            return True
 
         self.save_artifact("open_failed.xml", xml_str)
         return False
 
     def sort_replies_most_liked(self) -> bool:
         logger.info("Sorting replies by Most liked")
-        if not self.d(resourceId="com.twitter.android:id/reply_sorting").exists:
+        if not self._ensure_reply_sorting_visible():
             logger.warning("Reply sorting control not found")
             return False
 
@@ -111,11 +117,190 @@ class TwitterUI:
         self.d.press("back")
         return False
 
+    def _ensure_reply_sorting_visible(self, max_scrolls: int = 2) -> bool:
+        for attempt in range(max_scrolls + 1):
+            if self.d(resourceId="com.twitter.android:id/reply_sorting").exists:
+                return True
+            if attempt == max_scrolls:
+                return False
+
+            xml_str = self.d.dump_hierarchy()
+            if not self._is_tweet_detail_screen(xml_str):
+                return False
+
+            width, height = self.d.window_size()
+            logger.info("Scrolling tweet detail to expose reply sorting attempt=%s/%s", attempt + 1, max_scrolls)
+            self.d.swipe(width // 2, int(height * 0.78), width // 2, int(height * 0.35), duration=0.4)
+            self.wait_random(1, 2, "tweet detail scroll to replies")
+
+        return False
+
+    def _is_tweet_detail_screen(self, xml_str: str) -> bool:
+        if "Home timeline list" in xml_str:
+            return False
+        detail_markers = [
+            "com.twitter.android:id/toolbar",
+            "com.twitter.android:id/row",
+            "com.twitter.android:id/persistent_reply",
+        ]
+        return all(marker in xml_str for marker in detail_markers)
+
     def top_comments(self, max_comments: int) -> list:
         self.wait_random(2, 3, "comments load")
         xml_str = self.d.dump_hierarchy()
         self.save_artifact("comments.xml", xml_str)
         return parse_top_comments(xml_str, max_comments=max_comments)
+
+    def capture_primary_media_from_gallery(self, retries: int | None = None) -> TweetImage:
+        attempts = (self.config.media_capture_retries if retries is None else retries) + 1
+        last_reason = "capture was not attempted"
+
+        for attempt in range(1, attempts + 1):
+            try:
+                image = self._capture_primary_media_once(attempt)
+                if image.status == "captured" and image.data_base64:
+                    return image
+                last_reason = image.reason or "capture failed"
+            except Exception as exc:
+                logger.exception("Tweet media capture failed attempt=%s/%s", attempt, attempts)
+                last_reason = str(exc)
+            finally:
+                self._leave_gallery_if_open()
+
+            if attempt < attempts:
+                self.wait_random(0.8, 1.4, "media capture retry")
+
+        return TweetImage(mime_type="image/jpeg", source="gallery", status="failed", reason=last_reason)
+
+    def _capture_primary_media_once(self, attempt: int) -> TweetImage:
+        xml_str = self.d.dump_hierarchy()
+        bounds = self._primary_media_bounds(xml_str)
+        if not bounds:
+            return TweetImage(
+                mime_type="image/jpeg",
+                source="gallery",
+                status="failed",
+                reason="no visible media bounds",
+            )
+
+        x, y = self._center(bounds)
+        logger.info("Opening tweet media gallery attempt=%s point=(%s,%s) bounds=%s", attempt, x, y, bounds)
+        self.d.click(x, y)
+        self.wait_random(1, 2, "media gallery open")
+
+        gallery_xml = self.d.dump_hierarchy()
+        if not self._is_gallery_screen(gallery_xml):
+            self.save_artifact("media_gallery_open_failed.xml", gallery_xml)
+            return TweetImage(
+                mime_type="image/jpeg",
+                source="gallery",
+                status="failed",
+                reason="media gallery did not open",
+            )
+
+        image = self._screenshot_as_image()
+        encoded = self._encode_image_for_model(image)
+        logger.info(
+            "Captured tweet media source=gallery width=%s height=%s bytes=%s",
+            encoded.width,
+            encoded.height,
+            encoded.bytes_size,
+        )
+        return encoded
+
+    def _primary_media_bounds(self, xml_str: str) -> str | None:
+        import xml.etree.ElementTree as ET
+
+        root = ET.fromstring(xml_str)
+        candidates: list[str] = []
+        for node in root.iter("node"):
+            if node.get("resource-id") == "com.twitter.android:id/card_media_tweet_container":
+                bounds = node.get("bounds")
+                if bounds:
+                    candidates.append(bounds)
+
+        if not candidates:
+            return None
+
+        _, height = self.d.window_size()
+        visible = []
+        for bounds in candidates:
+            try:
+                x1, y1, x2, y2 = self._parse_bounds(bounds)
+            except ValueError:
+                continue
+            if y2 <= 0 or y1 >= height:
+                continue
+            visible.append((max(0, min(height, y2) - max(0, y1)), bounds))
+
+        if not visible:
+            return None
+        visible.sort(reverse=True)
+        return visible[0][1]
+
+    def _is_gallery_screen(self, xml_str: str) -> bool:
+        return (
+            "com.twitter.android:id/gallery_chrome_root" in xml_str
+            or "com.twitter.android:id/gallery_chrome_control_root" in xml_str
+        )
+
+    def _leave_gallery_if_open(self) -> None:
+        try:
+            xml_str = self.d.dump_hierarchy()
+        except Exception:
+            return
+        if self._is_gallery_screen(xml_str):
+            self.d.press("back")
+            self.wait_random(0.8, 1.4, "media gallery close")
+
+    def _screenshot_as_image(self):
+        try:
+            result = self.d.screenshot(format="pillow")
+        except TypeError:
+            result = self.d.screenshot()
+
+        from PIL import Image
+
+        if isinstance(result, Image.Image):
+            return result
+        if isinstance(result, bytes):
+            return Image.open(io.BytesIO(result))
+        if isinstance(result, str):
+            return Image.open(result)
+        if hasattr(result, "save"):
+            return result
+        raise TypeError(f"Unsupported screenshot result: {type(result)!r}")
+
+    def _encode_image_for_model(self, image) -> TweetImage:
+        from PIL import Image
+
+        max_edge = self.config.media_image_max_edge
+        if image.mode not in {"RGB", "L"}:
+            image = image.convert("RGB")
+        elif image.mode == "L":
+            image = image.convert("RGB")
+
+        width, height = image.size
+        scale = min(1.0, max_edge / max(width, height))
+        if scale < 1.0:
+            image = image.resize((int(width * scale), int(height * scale)), Image.LANCZOS)
+            width, height = image.size
+
+        buffer = io.BytesIO()
+        image.save(buffer, format="JPEG", quality=self.config.media_image_jpeg_quality, optimize=True)
+        data = buffer.getvalue()
+        if self.config.debug_artifacts:
+            self.save_binary_artifact("tweet_media.jpg", data)
+
+        return TweetImage(
+            mime_type="image/jpeg",
+            data_base64=base64.b64encode(data).decode("ascii"),
+            source="gallery",
+            width=width,
+            height=height,
+            bytes_size=len(data),
+            status="captured",
+        )
 
     def post_reply(self, reply_text: str) -> bool:
         logger.info("Posting validated reply chars=%s", len(reply_text))
@@ -343,3 +528,12 @@ class TwitterUI:
         if path.exists():
             path = self.config.artifacts_dir / f"{int(time.time())}-{name}"
         path.write_text(content, encoding="utf-8")
+
+    def save_binary_artifact(self, name: str, content: bytes) -> None:
+        if not self.config.debug_artifacts:
+            return
+        self.config.artifacts_dir.mkdir(parents=True, exist_ok=True)
+        path = self.config.artifacts_dir / name
+        if path.exists():
+            path = self.config.artifacts_dir / f"{int(time.time())}-{name}"
+        path.write_bytes(content)

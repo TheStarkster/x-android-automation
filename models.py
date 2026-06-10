@@ -23,6 +23,24 @@ class Comment:
 
 
 @dataclass
+class TweetImage:
+    mime_type: str
+    data_base64: str | None = None
+    source: str = "gallery"
+    width: int | None = None
+    height: int | None = None
+    bytes_size: int | None = None
+    status: str = "captured"
+    reason: str | None = None
+
+    def to_dict(self, include_data: bool = False) -> dict[str, Any]:
+        data = asdict(self)
+        if not include_data:
+            data.pop("data_base64", None)
+        return data
+
+
+@dataclass
 class Tweet:
     name: str | None = None
     username: str | None = None
@@ -36,11 +54,13 @@ class Tweet:
     bounds: str | None = None
     text_bounds: str | None = None
     header_bounds: str | None = None
+    media_bounds: str | None = None
     feed_text_index: int | None = None
     has_media: bool = False
     is_promoted: bool = False
     is_quote: bool = False
     comments: list[Comment] = field(default_factory=list)
+    image_context: TweetImage | None = None
     raw_content_desc: str | None = None
 
     @property
@@ -58,6 +78,7 @@ class Tweet:
         data = asdict(self)
         data["fingerprint"] = self.fingerprint
         data["comments"] = [comment.to_dict() for comment in self.comments]
+        data["image_context"] = self.image_context.to_dict() if self.image_context else None
         return data
 
 

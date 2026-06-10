@@ -41,6 +41,8 @@ class ParserTest(unittest.TestCase):
         self.assertGreaterEqual(len(tweets), 2)
         self.assertEqual(tweets[0].username, "@Manixh02")
         self.assertEqual(tweets[0].feed_text_index, 0)
+        self.assertTrue(tweets[0].has_media)
+        self.assertEqual(tweets[0].media_bounds, "[117,252][697,578]")
         self.assertNotEqual(tweets[0].fingerprint, tweets[1].fingerprint)
 
     def test_parse_quote_prefers_added_text(self):

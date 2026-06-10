@@ -24,6 +24,10 @@ def config() -> Config:
         launch_wait_max=0,
         post_wait_min=0,
         post_wait_max=0,
+        media_capture_mode="gallery",
+        media_capture_retries=1,
+        media_image_max_edge=1280,
+        media_image_jpeg_quality=85,
     )
 
 
@@ -62,6 +66,7 @@ class FakeUI:
         self.scrolled = 0
         self.opened = []
         self.posted_replies = []
+        self.capture_calls = 0
 
     def launch(self):
         return None
@@ -86,6 +91,12 @@ class FakeUI:
 
     def sort_replies_most_liked(self):
         return True
+
+    def capture_primary_media_from_gallery(self, retries=None):
+        self.capture_calls += 1
+        from models import TweetImage
+
+        return TweetImage(mime_type="image/jpeg", data_base64="abc", width=10, height=10, bytes_size=3)
 
     def top_comments(self, max_comments):
         return []
@@ -166,6 +177,37 @@ class RunnerTest(unittest.TestCase):
         self.assertEqual(ui.posted_replies, [])
         self.assertEqual(store.events[0].status, "skipped")
         self.assertEqual(store.events[0].reason, "reply is too generic")
+
+    def test_media_capture_happens_before_reply_sorting(self):
+        tweet = Tweet(
+            username="@visual",
+            body="This product screenshot explains the whole launch",
+            text_bounds="[117,466][697,614]",
+            header_bounds="[117,433][588,461]",
+            has_media=True,
+        )
+        store = FakeStore()
+
+        class OrderedUI(FakeUI):
+            def __init__(self, visible_sequences):
+                super().__init__(visible_sequences)
+                self.actions = []
+
+            def capture_primary_media_from_gallery(self, retries=None):
+                self.actions.append("capture")
+                return super().capture_primary_media_from_gallery(retries)
+
+            def sort_replies_most_liked(self):
+                self.actions.append("sort")
+                return True
+
+        ui = OrderedUI([[tweet]])
+        runner = CommentRunner(config(), ui, FakeGenerator(), store)
+
+        self.assertEqual(runner.run(), 1)
+        self.assertEqual(ui.actions[:2], ["capture", "sort"])
+        self.assertEqual(store.events[0].tweet["image_context"]["status"], "captured")
+        self.assertNotIn("data_base64", store.events[0].tweet["image_context"])
 
 
 if __name__ == "__main__":

@@ -22,6 +22,13 @@ class ValidationTest(unittest.TestCase):
         self.assertFalse(validate_reply("This is such a great point!", tweet, []).ok)
         self.assertFalse(validate_reply("AI changes software engineering", tweet, []).ok)
 
+    def test_validate_reply_allows_short_casual_human_reply(self):
+        tweet = Tweet(username="@a", body="This dashboard finally makes sense")
+        result = validate_reply("ya this lands", tweet, [])
+
+        self.assertTrue(result.ok)
+        self.assertEqual(result.text, "ya this lands")
+
     def test_normalize_reply_removes_quotes_and_newlines(self):
         self.assertEqual(normalize_reply('"hello\\nworld"'), "hello world")
         self.assertEqual(normalize_reply('"hello\nworld"'), "hello world")

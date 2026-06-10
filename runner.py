@@ -81,6 +81,13 @@ class CommentRunner:
                 continue
 
             try:
+                if tweet.has_media:
+                    tweet.image_context = self.ui.capture_primary_media_from_gallery(self.config.media_capture_retries)
+                    logger.info(
+                        "Tweet media context status=%s reason=%s",
+                        tweet.image_context.status if tweet.image_context else None,
+                        tweet.image_context.reason if tweet.image_context else None,
+                    )
                 self.ui.sort_replies_most_liked()
                 tweet.comments = self.ui.top_comments(self.config.top_comments)
                 generated, reply_text = self._generate_valid_reply(tweet)
@@ -273,6 +280,7 @@ def _probe_summary_row(screen: int, row_index: int, tweet, candidates: list[tupl
         "row_bounds": tweet.bounds,
         "text_bounds": tweet.text_bounds,
         "header_bounds": tweet.header_bounds,
+        "media_bounds": tweet.media_bounds,
         "has_media": tweet.has_media,
         "is_promoted": tweet.is_promoted,
         "is_quote": tweet.is_quote,
@@ -299,6 +307,7 @@ def _write_probe_summary(artifacts_dir, rows: list[dict]) -> None:
         "row_bounds",
         "text_bounds",
         "header_bounds",
+        "media_bounds",
         "has_media",
         "is_promoted",
         "is_quote",

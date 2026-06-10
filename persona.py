@@ -5,6 +5,7 @@ import random
 from models import Comment, Tweet
 
 
+MIN_REPLY_CHARS = 8
 MAX_REPLY_CHARS = 240
 
 STYLE_HINTS = (
@@ -51,6 +52,21 @@ PERSONA_PROFILE = """Voice profile for the real account operator:
 - Do not invent life events, jobs, achievements, or personal claims not listed here."""
 
 
+REPLY_SYSTEM_RULES = f"""Reply behavior:
+- Write one X/Twitter reply in the account voice.
+- Usually {MIN_REPLY_CHARS}-120 characters. Use 120-{MAX_REPLY_CHARS} only when the post genuinely needs nuance: a visual/chart/screenshot needs explaining, a misconception needs a careful correction, or a technical/creator-workflow point needs one extra detail.
+- Never pad the reply just to sound thoughtful; short is better when the reaction is simple.
+- Sound human in the feed: casual fragments are fine, no need for perfect grammar, capitalization, punctuation, or a final full stop.
+- You are replying across many posts, so do not try to be witty every time. Add light wit only when it lands naturally from the post, image, or comments; never force a joke.
+- Add one specific opinion, useful angle, or human reaction grounded in the post.
+- No hashtags, no links, no generic praise, no sales pitch.
+- Return only the reply text."""
+
+
+def build_reply_system_instruction() -> str:
+    return f"{PERSONA_PROFILE}\n\n{REPLY_SYSTEM_RULES}"
+
+
 def is_chameleon_relevant(tweet: Tweet) -> bool:
     haystack = " ".join(
         part
@@ -75,6 +91,7 @@ def build_reply_prompt(
     max_comments: int = 5,
 ) -> str:
     comments_text = _format_comments(tweet.comments[:max_comments])
+    image_note = _format_image_note(tweet)
     product_policy = (
         "Chameleon may be mentioned only if it adds useful context; keep it subtle and never salesy."
         if is_chameleon_relevant(tweet)
@@ -82,12 +99,11 @@ def build_reply_prompt(
     )
     retry_note = f"\nPrevious failed attempt reason: {previous_failure}. Fix that issue.\n" if previous_failure else ""
 
-    return f"""{PERSONA_PROFILE}
-
-You are replying on X/Twitter from this authentic account voice.
-
-Original post by {tweet.username}:
+    return f"""Original post by {tweet.username}:
 "{tweet.body}"
+
+Image context:
+{image_note}
 
 Top replies after sorting by Most liked:
 {comments_text}
@@ -95,17 +111,23 @@ Top replies after sorting by Most liked:
 Style hint for this reply:
 {style_hint}
 
-Write exactly one complete reply.
-Hard rules:
-- 20-{MAX_REPLY_CHARS} characters.
-- Add one specific opinion, useful angle, or human reaction grounded in the post.
+Context rules:
+- Use the attached image only if it changes the meaning or explains the joke, screenshot, chart, product, or visual.
 - Do not repeat the top replies.
-- No hashtags, no links, no generic praise, no sales pitch.
 - {product_policy}
-- It must read like a complete thought, not a cut-off fragment.
-- Return only the reply text."""
+- Do not return an obviously cut-off fragment that ends mid-thought.
+Use the system reply behavior exactly."""
 
 
 def _format_comments(comments: list[Comment]) -> str:
     lines = [f"- {comment.username}: {comment.body}" for comment in comments if comment.body]
     return "\n".join(lines) if lines else "(No visible replies)"
+
+
+def _format_image_note(tweet: Tweet) -> str:
+    if tweet.image_context and tweet.image_context.status == "captured":
+        return "(Attached image from the tweet is available to inspect.)"
+    if tweet.has_media:
+        reason = tweet.image_context.reason if tweet.image_context else "not captured"
+        return f"(Tweet has media, but no image was available to the model: {reason}.)"
+    return "(No image attached.)"
