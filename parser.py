@@ -4,7 +4,7 @@ import html
 import re
 import xml.etree.ElementTree as ET
 
-from .models import Comment, Tweet
+from models import Comment, Tweet
 
 
 TIME_PATTERN = r"\d+\s+(?:hour|minute|day|second|week|month|year)s?\s+ago"

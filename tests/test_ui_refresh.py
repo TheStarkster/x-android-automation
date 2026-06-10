@@ -1,9 +1,9 @@
 import unittest
 from pathlib import Path
 
-from x_automation.config import Config
-from x_automation.models import Tweet
-from x_automation.ui import TwitterUI
+from config import Config
+from models import Tweet
+from ui import TwitterUI
 
 
 def config() -> Config:

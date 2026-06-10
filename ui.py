@@ -5,9 +5,9 @@ import random
 import re
 import time
 
-from .config import Config
-from .models import Tweet
-from .parser import parse_top_comments, parse_visible_tweets
+from config import Config
+from models import Tweet
+from parser import parse_top_comments, parse_visible_tweets
 
 logger = logging.getLogger(__name__)
 

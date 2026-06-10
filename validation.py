@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from .models import Comment, Tweet
+from models import Comment, Tweet
 
 
 BANNED_TOPICS = {

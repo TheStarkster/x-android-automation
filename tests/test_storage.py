@@ -3,8 +3,8 @@ import unittest
 from datetime import datetime, timezone
 from pathlib import Path
 
-from x_automation.models import RunEvent, Tweet
-from x_automation.storage import RunStore
+from models import RunEvent, Tweet
+from storage import RunStore
 
 
 class RunStoreTest(unittest.TestCase):

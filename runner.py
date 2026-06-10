@@ -9,13 +9,13 @@ from datetime import datetime, timezone
 
 import uiautomator2 as u2
 
-from .config import Config
-from .gemini import GeminiClient
-from .models import RunEvent, utc_now_iso
-from .parser import parse_visible_tweets
-from .storage import RunStore
-from .ui import TwitterUI
-from .validation import validate_reply, validate_tweet
+from config import Config
+from gemini import GeminiClient
+from models import RunEvent, utc_now_iso
+from parser import parse_visible_tweets
+from storage import RunStore
+from ui import TwitterUI
+from validation import validate_reply, validate_tweet
 
 
 logger = logging.getLogger(__name__)

@@ -1,7 +1,7 @@
 import unittest
 
-from x_automation.models import Comment, Tweet
-from x_automation.validation import normalize_reply, validate_reply, validate_tweet
+from models import Comment, Tweet
+from validation import normalize_reply, validate_reply, validate_tweet
 
 
 class ValidationTest(unittest.TestCase):

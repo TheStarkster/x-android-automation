@@ -2,8 +2,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from x_automation.models import Tweet
-from x_automation.runner import _probe_skip_reason, _probe_summary_row, _write_probe_summary
+from models import Tweet
+from runner import _probe_skip_reason, _probe_summary_row, _write_probe_summary
 
 
 class ProbeSummaryTest(unittest.TestCase):

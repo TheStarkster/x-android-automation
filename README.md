@@ -23,15 +23,14 @@ DEBUG_ARTIFACTS=false
 ## Run
 
 ```bash
-python -m x_automation run
-python commenter.py
+python3 main.py run
 ```
 
 Before posting from a new app/device state, run a safe selector probe:
 
 ```bash
-python3 -m x_automation probe
-python3 -m x_automation probe --scrolls 5
+python3 main.py probe
+python3 main.py probe --scrolls 5
 ```
 
 `probe` opens X, captures the initial feed plus the requested number of scrolls,

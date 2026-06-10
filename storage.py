@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Iterable
 
-from .models import RunEvent, Tweet
+from models import RunEvent, Tweet
 
 
 class RunStore:

@@ -1,9 +1,9 @@
 import unittest
 from pathlib import Path
 
-from x_automation.config import Config
-from x_automation.models import GeneratedReply, Tweet
-from x_automation.runner import CommentRunner
+from config import Config
+from models import GeneratedReply, Tweet
+from runner import CommentRunner
 
 
 def config() -> Config:

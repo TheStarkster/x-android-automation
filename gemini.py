@@ -5,8 +5,8 @@ from dataclasses import dataclass
 
 import requests
 
-from .models import GeneratedReply, Tweet
-from .validation import normalize_reply
+from models import GeneratedReply, Tweet
+from validation import normalize_reply
 
 logger = logging.getLogger(__name__)
 

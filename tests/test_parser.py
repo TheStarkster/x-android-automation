@@ -1,7 +1,7 @@
 from pathlib import Path
 import unittest
 
-from x_automation.parser import (
+from parser import (
     extract_number,
     parse_comment_from_content_desc,
     parse_top_comments,
@@ -10,7 +10,7 @@ from x_automation.parser import (
 )
 
 
-ROOT = Path(__file__).resolve().parents[1]
+FIXTURES = Path(__file__).resolve().parent / "fixtures"
 
 
 class ParserTest(unittest.TestCase):
@@ -37,7 +37,7 @@ class ParserTest(unittest.TestCase):
         self.assertEqual(tweet.views, 4228)
 
     def test_parse_visible_tweets_from_snapshot(self):
-        tweets = parse_visible_tweets((ROOT / "current_feed_ui.xml").read_text(encoding="utf-8"))
+        tweets = parse_visible_tweets((FIXTURES / "current_feed_ui.xml").read_text(encoding="utf-8"))
         self.assertGreaterEqual(len(tweets), 2)
         self.assertEqual(tweets[0].username, "@Manixh02")
         self.assertEqual(tweets[0].feed_text_index, 0)
@@ -82,6 +82,6 @@ class ParserTest(unittest.TestCase):
         self.assertEqual(comment.likes, 96)
 
     def test_parse_top_comments_from_snapshot(self):
-        comments = parse_top_comments((ROOT / "click_tweet_ui.xml").read_text(encoding="utf-8"), max_comments=5)
+        comments = parse_top_comments((FIXTURES / "click_tweet_ui.xml").read_text(encoding="utf-8"), max_comments=5)
         self.assertTrue(comments)
         self.assertEqual(comments[0].body, "Vercel")
