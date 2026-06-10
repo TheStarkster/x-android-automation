@@ -1,0 +1,14 @@
+__pycache__/
+.pytest_cache/
+*.pyc
+.env
+artifacts/
+runs/
+*.log
+*.png
+current_ui.xml
+post_comment_ui.xml
+ui_hierarchy_error.xml
+scraped_tweets.json
+scraped_tweets.csv
+tweets_with_comments.json
