@@ -25,3 +25,21 @@ class ValidationTest(unittest.TestCase):
     def test_normalize_reply_removes_quotes_and_newlines(self):
         self.assertEqual(normalize_reply('"hello\\nworld"'), "hello world")
         self.assertEqual(normalize_reply('"hello\nworld"'), "hello world")
+
+    def test_validate_reply_rejects_incomplete_and_over_limit_text(self):
+        tweet = Tweet(username="@a", body="AI video costs are still wild for short clips")
+
+        self.assertFalse(validate_reply("This matters for creators because", tweet, []).ok)
+        self.assertFalse(validate_reply("I keep seeing this in creator workflows,", tweet, []).ok)
+        self.assertFalse(validate_reply("x" * 241, tweet, []).ok)
+
+    def test_validate_reply_enforces_chameleon_relevance(self):
+        unrelated = Tweet(username="@a", body="Which programming language do you hate the most?")
+        relevant = Tweet(username="@b", body="Need a cheaper way to make reels from an idea")
+
+        self.assertFalse(
+            validate_reply("Chameleon is exactly the kind of tool that would help here.", unrelated, []).ok
+        )
+        self.assertTrue(
+            validate_reply("Chameleon is relevant here only if it keeps the reel useful, not just shiny.", relevant, []).ok
+        )

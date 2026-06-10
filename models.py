@@ -66,6 +66,10 @@ class GeneratedReply:
     text: str
     provider: str = "gemini"
     model: str | None = None
+    attempt: int | None = None
+    style_hint: str | None = None
+    finish_reason: str | None = None
+    validation_reason: str | None = None
     created_at: str = field(default_factory=utc_now_iso)
 
     def to_dict(self) -> dict[str, Any]:

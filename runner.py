@@ -83,13 +83,13 @@ class CommentRunner:
             try:
                 self.ui.sort_replies_most_liked()
                 tweet.comments = self.ui.top_comments(self.config.top_comments)
-                generated = self.generator.generate_reply(tweet)
-                reply_check = validate_reply(generated.text, tweet, tweet.comments)
-                if not reply_check.ok or not reply_check.text:
-                    self._record_skip(tweet, reply_check.reason, generated.to_dict())
+                generated, reply_text = self._generate_valid_reply(tweet)
+                if not generated or not reply_text:
+                    reason = generated.validation_reason if generated else "reply generation failed"
+                    self._record_skip(tweet, reason, generated.to_dict() if generated else None)
                     continue
 
-                generated.text = reply_check.text
+                generated.text = reply_text
                 if self.ui.post_reply(generated.text):
                     self.posted += 1
                     self.processed.add(tweet.fingerprint)
@@ -114,6 +114,30 @@ class CommentRunner:
 
         logger.info("Run complete posted=%s scroll_attempts=%s", self.posted, scroll_attempts)
         return self.posted
+
+    def _generate_valid_reply(self, tweet, max_attempts: int = 3):
+        previous_failure = None
+        last_generated = None
+        for attempt in range(1, max_attempts + 1):
+            generated = self.generator.generate_reply(tweet, attempt=attempt, previous_failure=previous_failure)
+            last_generated = generated
+
+            if generated.finish_reason == "MAX_TOKENS":
+                previous_failure = "model output hit token limit"
+                generated.validation_reason = previous_failure
+                logger.info("Generated reply failed attempt=%s reason=%s", attempt, previous_failure)
+                continue
+
+            reply_check = validate_reply(generated.text, tweet, tweet.comments)
+            if reply_check.ok and reply_check.text:
+                generated.validation_reason = None
+                return generated, reply_check.text
+
+            previous_failure = reply_check.reason or "reply validation failed"
+            generated.validation_reason = previous_failure
+            logger.info("Generated reply failed attempt=%s reason=%s", attempt, previous_failure)
+
+        return last_generated, None
 
     def _actionable_tweets(self, tweets):
         actionable = []

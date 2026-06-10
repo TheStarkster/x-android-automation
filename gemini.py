@@ -6,6 +6,7 @@ from dataclasses import dataclass
 import requests
 
 from models import GeneratedReply, Tweet
+from persona import build_reply_prompt, choose_style_hint
 from validation import normalize_reply
 
 logger = logging.getLogger(__name__)
@@ -37,26 +38,14 @@ class GeminiClient:
         payload = response.json()
         return bool(payload.get("candidates"))
 
-    def generate_reply(self, tweet: Tweet) -> GeneratedReply:
-        comments_text = "\n".join(
-            f"- {comment.username}: {comment.body}" for comment in tweet.comments[:5] if comment.body
-        )
-        prompt = f"""You are replying on X/Twitter as a thoughtful real person.
-
-Original post by {tweet.username}:
-"{tweet.body}"
-
-Top replies after sorting by Most liked:
-{comments_text if comments_text else "(No visible replies)"}
-
-Write one concise reply, 20-240 characters.
-Rules:
-- Add a specific opinion or useful angle.
-- Do not repeat the existing top replies.
-- No hashtags, no sales pitch, no generic praise.
-- Sound natural and conversational.
-- Return only the reply text.
-"""
+    def generate_reply(
+        self,
+        tweet: Tweet,
+        attempt: int = 1,
+        previous_failure: str | None = None,
+    ) -> GeneratedReply:
+        style_hint = choose_style_hint()
+        prompt = build_reply_prompt(tweet, style_hint=style_hint, previous_failure=previous_failure)
         logger.info("Generating reply with Gemini model=%s prompt_chars=%s", self.model, len(prompt))
         response = requests.post(
             self.url,
@@ -65,12 +54,21 @@ Rules:
                 "contents": [{"parts": [{"text": prompt}]}],
                 "generationConfig": {
                     "temperature": 0.75,
-                    "maxOutputTokens": 160,
+                    "maxOutputTokens": 320,
                 },
             },
             timeout=self.timeout,
         )
         response.raise_for_status()
         payload = response.json()
-        text = payload["candidates"][0]["content"]["parts"][0]["text"]
-        return GeneratedReply(text=normalize_reply(text), model=self.model)
+        candidate = payload["candidates"][0]
+        finish_reason = candidate.get("finishReason")
+        parts = candidate.get("content", {}).get("parts", [])
+        text = "".join(part.get("text", "") for part in parts)
+        return GeneratedReply(
+            text=normalize_reply(text),
+            model=self.model,
+            attempt=attempt,
+            style_hint=style_hint,
+            finish_reason=finish_reason,
+        )
